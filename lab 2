@@ -1,0 +1,297 @@
+`timescale 1ns / 1ps
+
+//increment and reset mapped to push buttons 
+//mode select matched to a switch 
+module top(
+input clk,
+input bin,
+input reset,
+input mode_select,
+input S,
+ 
+output [3:0] anode, 
+output [6:0] display
+    );
+    
+wire[3:0] ONE_DIGIT;
+wire[15:0] count;
+wire bout;
+wire slow_clk;
+wire fast_clk;
+wire Y;
+
+
+debounce deb(bout, clk, reset, bin);
+
+slow_clk clk_2(clk, slow_clk);
+
+m21 m(S,bout,slow_clk, Y, clk);
+
+counter16 c1(count,reset,Y);
+
+fast_clk clk_1(clk, fast_clk);
+
+display_control d1(anode,fast_clk,reset,count,ONE_DIGIT);
+
+binary_to_seven_segment_decoder controller (display, ONE_DIGIT,anode);
+
+
+endmodule
+`timescale 1ns / 1ps
+
+module m21(
+
+input  S, 
+input bout,
+input clk,
+output reg Y,
+input clock
+
+
+);
+always @(posedge clock)
+case(S)
+    1'b0: Y= bout;
+    1'b1: Y=clk;
+    
+endcase
+
+
+endmodule
+
+`timescale 1ns / 1ps
+
+module clock_divider_1_Hz(
+input wire clk,
+output reg clk1 = 0 //1Hz
+
+    );
+ localparam div_value = 49999999;
+ integer counter_value =0;
+ 
+ always @ (posedge clk)
+ begin
+ 
+ if (counter_value == div_value) begin 
+    counter_value<=0;
+            clk1<=~clk1;
+end 
+ else begin 
+    counter_value<=counter_value +1;
+            clk1<=clk1;
+
+ end    
+ end 
+ 
+
+endmodule
+
+
+module clock_divider_1_KHz(
+input wire clk,
+output reg clk2 = 0 //1KHz
+
+    );
+ localparam div_value = 50000;
+ integer counter_value =0;
+ 
+ always @ (posedge clk)
+ begin
+ 
+ if (counter_value == div_value)begin 
+    counter_value<=0;
+            clk2<=~clk2;
+end 
+ else begin
+    counter_value<=counter_value +1;
+            clk2<=clk2;
+
+    
+ end 
+ 
+ end 
+endmodule
+
+`timescale 1ns / 1ps
+
+module counter16(
+output reg [15:0] count = 16'b0,
+input wire reset,
+input wire clk
+
+   
+    
+    );
+;
+    /*always @(negedge reset) begin
+     if(reset==0) begin
+                   next_count<=0;
+            end    
+            end*/   
+    always @(posedge clk or posedge reset)
+            begin
+                if(reset) begin
+                   count<=16'b0;
+                end   
+                else    
+                begin
+               
+                count <= count+1'b1 ;
+                 
+              end
+              
+  
+    end
+   
+endmodule
+
+`timescale 1ns / 1ps
+
+
+module display_control(
+//input[15:0] DIGIT,
+output reg [3:0] anode ,
+input  clk,
+input reset,
+input[15:0] count,
+output reg [3:0] ONE_DIGIT
+
+
+    );
+    
+ reg[1:0] twobitcnter = 0;
+ 
+ always @ (posedge clk or posedge reset)
+ begin
+    if(reset)
+    begin
+        anode=0;
+        ONE_DIGIT=0;
+        twobitcnter =0;
+ 
+ 
+
+ end else begin   
+ 
+
+ twobitcnter = twobitcnter+1'b1;
+ 
+    
+ 
+
+    case(twobitcnter)
+        2'b00: begin 
+            anode=4'b1110;
+            ONE_DIGIT <= count[3:0];
+            end
+        2'b01: begin
+            anode=4'b1101;
+            ONE_DIGIT <= count[7:4];
+            end
+        2'b10: begin
+            anode=4'b1011;
+            ONE_DIGIT <= count[11:8];
+            end
+        2'b11: begin 
+            anode=4'b0111;
+            ONE_DIGIT <= count[15:12];
+            end 
+     endcase
+ end
+
+end
+
+
+endmodule
+`timescale 1ns / 1ps
+
+
+
+module binary_to_seven_segment_decoder(
+    output  reg [6:0]display,
+
+    input   [3:0]display_select,
+    output [3:0] AN
+    );
+    reg[6:0]rS;
+always @(display_select)
+begin
+case (display_select)
+            4'b0000: display = 7'b1000000;
+		    4'b0001: display = 7'b1111001;
+			4'b0010: display = 7'b0100100;
+			4'b0011: display = 7'b0110000;
+			4'b0100: display = 7'b0011001;
+			4'b0101: display = 7'b0010010;
+			4'b0110: display = 7'b0000010;
+			4'b0111: display = 7'b1111000;
+			4'b1000: display = 7'b0000000;
+			4'b1001: display = 7'b0011000;
+			4'b1010: display = 7'b0001000;
+			4'b1011: display = 7'b0000011;
+			4'b1100: display = 7'b1000110;
+			4'b1101: display = 7'b0100001;
+			4'b1110: display = 7'b0000110;
+			4'b1111: display = 7'b0001110;
+
+endcase
+end
+endmodule
+`timescale 1ns / 1ps
+
+
+module debounce(
+    output reg bout = 1'b0,
+    input clk, 
+    input reset,
+    input bin //glitchy button
+    ////////// 
+    );
+reg[31:0] debouncer_counter =1'b0;
+
+reg bout_exists=0;
+
+
+always @ (posedge clk ) begin
+    if(reset) begin
+        debouncer_counter <=20'b00000000000000000000;
+        bout_exists <=0;
+ 
+     
+    end
+    if(bin == 1)
+     begin 
+        if(bout_exists==0) 
+        begin
+            if(debouncer_counter ==1000000)
+             begin
+                bout <=1'b1;
+               bout_exists = 1'b1;
+               debouncer_counter=32'b0;
+            end 
+            
+            else 
+            begin 
+                debouncer_counter <= debouncer_counter +1'b1;
+            end
+          
+            end
+            else
+            begin
+                bout=1'b0;
+            
+            end 
+        end
+        else 
+        begin
+    bout_exists=1'b0;
+    debouncer_counter = 32'b0;
+end
+end
+endmodule
+
+ 
+
+
+
+
